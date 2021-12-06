@@ -6,7 +6,7 @@ import numpy as np
 import os
 from keras.models import Sequential
 from keras.layers import LSTM
-
+#TODO: Add a clean mode, and rewrite all of this code to work for python 3.x
 depth = 8  # network depth
 maxsyllables = 14  # maximum syllables per line. Change this freely without retraining the network
 train_mode = True
