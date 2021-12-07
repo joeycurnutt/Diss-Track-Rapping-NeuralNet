@@ -7,12 +7,14 @@ import os
 from keras.models import Sequential
 from keras.layers import LSTM
 #TODO: Add a clean mode, and rewrite all of this code to work for python 3.x
-depth = 8  # network depth
-maxsyllables = 14  # maximum syllables per line. Change this freely without retraining the network
-train_mode = True
+depth = 32  # network depth
+maxsyllables = 19  # maximum syllables per line. Change this freely without retraining the network
+train_mode = False
 artist = "Eminem"  # used when saving the trained model
 rap_file = "diss_track.txt"  # where the rap is written to
-
+clean_mode = False # Censors lyrics. Changing will not require a retrain, but using it may result in worse lines
+if clean_mode == True:
+    from better_profanity import profanity
 
 def create_network(depth):
     # Sequential() creates a linear stack of layers
@@ -58,22 +60,23 @@ def markov(text_file):
 def syllables(line):
     count = 0
     for word in line.split(" "):
-        vowels = 'aeiouy'
-        word = word.lower().strip("-.:;?!'")
-        try:
-            if word[0] in vowels:
+        if word:
+            vowels = 'aeiouy'
+            word = word.lower().strip("-.:;?!'")
+            try:
+                if word[0] in vowels:
+                    count += 1
+            except:
+                pass
+            for index in range(1, len(word)):
+                if word[index] in vowels and word[index - 1] not in vowels:
+                    count += 1
+            if word.endswith('e'):
+                count -= 1
+            if word.endswith('le'):
                 count += 1
-        except:
-            pass
-        for index in range(1, len(word)):
-            if word[index] in vowels and word[index - 1] not in vowels:
+            if count == 0:
                 count += 1
-        if word.endswith('e'):
-            count -= 1
-        if word.endswith('le'):
-            count += 1
-        if count == 0:
-            count += 1
     return count / maxsyllables
 
 
@@ -152,7 +155,7 @@ def rhyme(line, rhyme_list):
 # in their own index of a list, and then removes any empty lines
 # from the lyrics file and returns the list as bars
 def split_lyrics_file(text_file):
-    text = open(text_file, encoding="latin1").read()
+    text = open(text_file).read()
     text = text.split("\n")
     while "" in text:
         text.remove("")
@@ -173,6 +176,10 @@ def generate_lyrics(lyrics_file):
         # If it is successful, the method returns the sentence as a string.
         # If not, it returns None. (https://github.com/jsvine/markovify)
         bar = markov_model.make_sentence()
+        if clean_mode == "True":
+            profanity.load_censor_words()
+            profanity.censor(bar)
+                
 
         # make sure the bar isn't 'None' and that the amount of
         # syllables is under the max syllables
@@ -262,11 +269,11 @@ def compose_rap(lines, rhyme_list, lyrics_file, model):
     # predict generates output predictions for the given samples
     # it's reshaped as a (1, 2, 2) so that the model can predict each
     # 2x2 matrix of [syllable, rhyme_index] pairs
-    starting_vectors = model.predict(np.array([starting_input]).flatten().reshape(4, 2, 2))
+    starting_vectors = model.predict(np.array([starting_input]).astype(float).flatten().reshape(4, 2, 2))
     rap_vectors.append(starting_vectors)
 
     for i in range(49):
-        rap_vectors.append(model.predict(np.array([rap_vectors[-1]]).flatten().reshape(4, 2, 2)))
+        rap_vectors.append(model.predict(np.array([rap_vectors[-1]]).astype(float).flatten().reshape(4, 2, 2)))
 
     return rap_vectors
 
@@ -310,9 +317,11 @@ def vectors_into_song(vectors, generated_lyrics, rhyme_list):
         # generate a score by subtracting from 1 the sum of the difference between
         # predicted syllables and generated syllables and the difference between
         # the predicted rhyme and generated rhyme and then subtract the penalty
-        score = 1.0 - (abs((float(desired_syllables) - float(syllables))) + abs(
-            (float(desired_rhyme) - float(rhyme)))) - penalty
-
+        try:
+            score = 1.0 - (abs((float(desired_syllables) - float(syllables))) + abs(
+                (float(desired_rhyme) - float(rhyme)))) - penalty
+        except:
+            score = 0
         return score
 
     # generated a list of all the lines from generated_lyrics with their
@@ -379,13 +388,7 @@ def train(x_data, y_data, model):
     # x is the training and y is the target data
     # batch_size is a subset of the training data (2 in this case)
     # verbose simply shows a progress bar
-    x_data = ''.join(map(str, x_data))
-    x_data = int(float(x_data))
-    y_data = ''.join(map(str, y_data))
-    y_data = int(float(y_data))
-    x_data=np.asarray(x_data).astype(np.int)
-    y_data=np.asarray(y_data).astype(np.int)
-    model.fit(np.array(x_data), np.array(y_data),
+    model.fit(np.array(x_data).astype(float), np.array(y_data).astype(float),
               batch_size=2,
               epochs=5,
               verbose=1)
