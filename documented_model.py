@@ -6,15 +6,40 @@ import numpy as np
 import os
 from keras.models import Sequential
 from keras.layers import LSTM
+import time
 #TODO: Add a clean mode, and rewrite all of this code to work for python 3.x
-depth = 32  # network depth
+depth = 16  # network depth
 maxsyllables = 19  # maximum syllables per line. Change this freely without retraining the network
-train_mode = False
+train_mode = True
 artist = "Eminem"  # used when saving the trained model
 rap_file = "diss_track.txt"  # where the rap is written to
 clean_mode = False # Censors lyrics. Changing will not require a retrain, but using it may result in worse lines
 if clean_mode == True:
     from better_profanity import profanity
+
+def sort_list(list):
+    list.sort()
+    return list
+
+def purify(list):
+    indices = []
+    i = 0
+    for c in list:
+        if "(" in list[i]:
+            indices.append(i)
+        elif ")" in list[i]:
+            indices.append(i)
+        else:
+            i += 1
+    indices = sort_list(indices)
+    try: 
+        index = indices[0]
+        while index < indices[-1]:
+            list.pop(index)
+            index += 1
+        return list
+    except:
+        return list
 
 def create_network(depth):
     # Sequential() creates a linear stack of layers
@@ -44,7 +69,7 @@ def create_network(depth):
 
 
 def markov(text_file):
-    read = open(text_file, "r", encoding="latin1").read()
+    read = open(text_file, "r").read()
     # markovify goes line by line of the Eminem.txt file and
     # creates a model of the text which allows us to use
     # make_sentence() later on to create a bar for lyrics
@@ -91,29 +116,35 @@ def rhymeindex(lyrics):
         print("Alright, building the list of all the rhymes")
         for i in lyrics:
             # grabs the last word in each bar
-            word = re.sub(r"\W+", '', i.split(" ")[-1]).lower()
+            unclean = i.split(" ")
+            print(unclean)
+            pure_bar = purify(unclean)
+            word = pure_bar.pop()
+
             # pronouncing.rhymes gives us a word that rhymes with the word being passed in
             rhymeslist = pronouncing.rhymes(word)
-            # need to convert the unicode rhyme words to UTF8
-            rhymeslist = [x.encode('UTF8') for x in rhymeslist]
             # rhymeslistends contains the last two characters for each word
             # that could potentially rhyme with our word
             rhymeslistends = []
             for i in rhymeslist:
                 rhymeslistends.append(i[-2:])
+            '''FOLLOWING SECTION NEEDS REWORK'''
             try:
                 # rhymescheme gets all the unique two letter endings and then
                 # finds the one that occurs the most
                 rhymescheme = max(set(rhymeslistends), key=rhymeslistends.count)
             except Exception:
                 rhymescheme = word[-2:]
+
             rhyme_master_list.append(rhymescheme)
+
         # rhyme_master_list is a list of the two letters endings that appear
         # the most in the rhyme list for the word
         rhyme_master_list = list(set(rhyme_master_list))
+        reverselist = [x[::-1] for x in rhyme_master_list]
+        sort_list(reverselist)
+        
 
-        reverselist = str([x[::-1] for x in rhyme_master_list])
-        reverselist = sorted(reverselist)
         # rhymelist is a list of the two letter endings (reversed)
         # the reason the letters are reversed and sorted is so
         # if the network messes up a little bit and doesn't return quite
@@ -135,7 +166,6 @@ def rhymeindex(lyrics):
 def rhyme(line, rhyme_list):
     word = re.sub(r"\W+", '', line.split(" ")[-1]).lower()
     rhymeslist = pronouncing.rhymes(word)
-    rhymeslist = [x.encode('UTF8') for x in rhymeslist]
     rhymeslistends = []
     for i in rhymeslist:
         rhymeslistends.append(i[-2:])
@@ -390,7 +420,7 @@ def train(x_data, y_data, model):
     # verbose simply shows a progress bar
     model.fit(np.array(x_data).astype(float), np.array(y_data).astype(float),
               batch_size=2,
-              epochs=5,
+              epochs=7,
               verbose=1)
     # save_weights saves the best weights from training to a hdf5 file
     model.save_weights(artist + ".rap")
