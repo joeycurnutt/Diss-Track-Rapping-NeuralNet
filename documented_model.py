@@ -1,3 +1,6 @@
+# Comments not provided by me
+# Code partially used from Robbie Barrat's Rapping NN
+
 import pronouncing
 import markovify
 import re
@@ -7,39 +10,50 @@ import os
 from keras.models import Sequential
 from keras.layers import LSTM
 import time
-#TODO: Add a clean mode, and rewrite all of this code to work for python 3.x
-depth = 16  # network depth
-maxsyllables = 19  # maximum syllables per line. Change this freely without retraining the network
-train_mode = True
+depth = 4  # network depth
+maxsyllables = 14  # maximum syllables per line. Change this freely without retraining the network
+train_mode = False
 artist = "Eminem"  # used when saving the trained model
 rap_file = "diss_track.txt"  # where the rap is written to
-clean_mode = False # Censors lyrics. Changing will not require a retrain, but using it may result in worse lines
+clean_mode = True # Censors lyrics. Changing will not require a retrain, but using it may result in worse lines
 if clean_mode == True:
     from better_profanity import profanity
 
+# Sort list but return list as well instead of what the weird built-in function does
 def sort_list(list):
     list.sort()
     return list
 
-def purify(list):
-    indices = []
+# Remove all words in parentheses from the lyrics so rhymes work well
+def purify(elements):
+    '''indices = []
     i = 0
-    for c in list:
+    for ele in list:
         if "(" in list[i]:
             indices.append(i)
         elif ")" in list[i]:
             indices.append(i)
         else:
             i += 1
-    indices = sort_list(indices)
+    # Remove words with parentheses and any words included inside parentheses
     try: 
-        index = indices[0]
-        while index < indices[-1]:
-            list.pop(index)
-            index += 1
+        half_index = (len(indices))/2
+        y = indices[0]
+        index_count = 0
+        for num in range(0, half_index):
+            while y < indices[index_count + 1]:
+                list = list.pop(y)
+                y += 1
+            index_count += 1
         return list
+    # If no parentheses, just return the original list
     except:
-        return list
+        return list'''
+    for ele in elements:
+        clean = []
+        ele = re.sub(r" ?\([^)]+\)", "", ele)
+        clean.append(ele)
+    return clean
 
 def create_network(depth):
     # Sequential() creates a linear stack of layers
@@ -85,28 +99,27 @@ def markov(text_file):
 def syllables(line):
     count = 0
     for word in line.split(" "):
-        if word:
-            vowels = 'aeiouy'
-            word = word.lower().strip("-.:;?!'")
-            try:
-                if word[0] in vowels:
-                    count += 1
-            except:
-                pass
-            for index in range(1, len(word)):
-                if word[index] in vowels and word[index - 1] not in vowels:
-                    count += 1
-            if word.endswith('e'):
-                count -= 1
-            if word.endswith('le'):
+        vowels = 'aeiouy'
+        word = word.lower().strip("-.:;?!'")
+        try:
+            if word[0] in vowels:
                 count += 1
-            if count == 0:
+        except:
+            pass
+        for index in range(1, len(word)):
+            if word[index] in vowels and word[index - 1] not in vowels:
                 count += 1
+        if word.endswith('e'):
+            count -= 1
+        if word.endswith('le'):
+            count += 1
+        if count == 0:
+            count += 1
     return count / maxsyllables
 
 
 # writes a rhyme list to a rhymes file that allows for use when
-# building the dataset, and composing the rap
+# building the dataset and composing the rap
 def rhymeindex(lyrics):
     if str(artist) + ".rhymes" in os.listdir(".") and train_mode == False:
         print("loading saved rhymes from " + str(artist) + ".rhymes")
@@ -116,17 +129,21 @@ def rhymeindex(lyrics):
         print("Alright, building the list of all the rhymes")
         for i in lyrics:
             # grabs the last word in each bar
-            unclean = i.split(" ")
-            print(unclean)
+            if i is None:
+                continue
+            unclean = []
+            unclean.append(i)
             pure_bar = purify(unclean)
-            word = pure_bar.pop()
-
+            bar_as_string = pure_bar[0]
+            word = bar_as_string[-2:]
+            print(word)
             # pronouncing.rhymes gives us a word that rhymes with the word being passed in
             rhymeslist = pronouncing.rhymes(word)
             # rhymeslistends contains the last two characters for each word
             # that could potentially rhyme with our word
             rhymeslistends = []
             for i in rhymeslist:
+                i.strip("';:.,/?!-")
                 rhymeslistends.append(i[-2:])
             '''FOLLOWING SECTION NEEDS REWORK'''
             try:
@@ -134,6 +151,7 @@ def rhymeindex(lyrics):
                 # finds the one that occurs the most
                 rhymescheme = max(set(rhymeslistends), key=rhymeslistends.count)
             except Exception:
+                word.strip("'?.!-:;").lower()
                 rhymescheme = word[-2:]
 
             rhyme_master_list.append(rhymescheme)
@@ -153,7 +171,7 @@ def rhymeindex(lyrics):
         # so if the network messes up, that's alright and as long as it's just close to the
         # correct rhymes
         rhymelist = [x[::-1] for x in reverselist]
- 
+
         f = open(str(artist) + ".rhymes", "w")
         f.write("\n".join(rhymelist))
         f.close()
@@ -206,10 +224,6 @@ def generate_lyrics(lyrics_file):
         # If it is successful, the method returns the sentence as a string.
         # If not, it returns None. (https://github.com/jsvine/markovify)
         bar = markov_model.make_sentence()
-        if clean_mode == "True":
-            profanity.load_censor_words()
-            profanity.censor(bar)
-                
 
         # make sure the bar isn't 'None' and that the amount of
         # syllables is under the max syllables
@@ -230,7 +244,12 @@ def generate_lyrics(lyrics_file):
                 bars.append(bar)
                 last_words.append(last_word)
                 count += 1
-
+    if clean_mode == True:
+            profanity.load_censor_words()
+            for x in range(0, len(bars)):
+                bars.pop(x)
+                bar = profanity.censor(bar)
+                bars.append(bar)
     return bars
 
 
@@ -277,8 +296,6 @@ def build_dataset(lyrics, rhyme_list):
     x_data = np.array(x_data)
     y_data = np.array(y_data)
 
-    # print "x shape " + str(x_data.shape)
-    # print "y shape " + str(y_data.shape)
     return x_data, y_data
 
 # only used when not training
@@ -413,14 +430,14 @@ def vectors_into_song(vectors, generated_lyrics, rhyme_list):
 
 
 def train(x_data, y_data, model):
-    # fit is used to train the model for 5 'epochs' (iterations) where
+    # fit is used to train the model for 6 'epochs' (iterations) where
     # the x_data is the training data, and the y_data is the target data
     # x is the training and y is the target data
     # batch_size is a subset of the training data (2 in this case)
     # verbose simply shows a progress bar
     model.fit(np.array(x_data).astype(float), np.array(y_data).astype(float),
               batch_size=2,
-              epochs=7,
+              epochs=6,
               verbose=1)
     # save_weights saves the best weights from training to a hdf5 file
     model.save_weights(artist + ".rap")
@@ -445,7 +462,7 @@ def main(depth, train_mode):
     if train_mode == False:
         vectors = compose_rap(bars, rhyme_list, text_file, model)
         rap = vectors_into_song(vectors, bars, rhyme_list)
-        f = open(rap_file, "w")
+        f = open(rap_file, "a")
         for bar in rap:
             f.write(bar)
             f.write("\n")
