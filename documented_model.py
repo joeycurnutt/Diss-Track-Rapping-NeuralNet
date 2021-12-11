@@ -1,21 +1,19 @@
-# Comments not provided by me
 # Code partially used from Robbie Barrat's Rapping NN
-
+# Some comments provided by Robbie Barrat NN fork
 import pronouncing
 import markovify
 import re
 import random
 import numpy as np
 import os
+from keras.layers import CuDNNLSTM
 from keras.models import Sequential
-from keras.layers import LSTM
-import time
-depth = 4  # network depth
-maxsyllables = 14  # maximum syllables per line. Change this freely without retraining the network
+depth = 4
+maxsyllables = 14
 train_mode = False
-artist = "Eminem"  # used when saving the trained model
-rap_file = "diss_track.txt"  # where the rap is written to
-clean_mode = True # Censors lyrics. Changing will not require a retrain, but using it may result in worse lines
+artist = "Eminem"
+rap_file = "diss_track.txt"
+clean_mode = True
 if clean_mode == True:
     from better_profanity import profanity
 
@@ -26,52 +24,27 @@ def sort_list(list):
 
 # Remove all words in parentheses from the lyrics so rhymes work well
 def purify(elements):
-    '''indices = []
-    i = 0
-    for ele in list:
-        if "(" in list[i]:
-            indices.append(i)
-        elif ")" in list[i]:
-            indices.append(i)
-        else:
-            i += 1
-    # Remove words with parentheses and any words included inside parentheses
-    try: 
-        half_index = (len(indices))/2
-        y = indices[0]
-        index_count = 0
-        for num in range(0, half_index):
-            while y < indices[index_count + 1]:
-                list = list.pop(y)
-                y += 1
-            index_count += 1
-        return list
-    # If no parentheses, just return the original list
-    except:
-        return list'''
     for ele in elements:
         clean = []
-        ele = re.sub(r" ?\([^)]+\)", "", ele)
+        ele = re.sub(r" ?\([^)]+\)", "", ele) # https://www.w3resource.com/python-exercises/re/python-re-exercise-50.php
         clean.append(ele)
     return clean
 
 def create_network(depth):
     # Sequential() creates a linear stack of layers
     model = Sequential()
-    # Adds a LSTM layer as the first layer in the network with
+    # Adds a GPU-friendly LSTM layer (I have one) as the first layer in the network with
     # 4 units (nodes), and a 2x2 tensor (which is the same shape as the
     # training data)
-    model.add(LSTM(4, input_shape=(2, 2), return_sequences=True))
+    model.add(CuDNNLSTM(4, input_shape=(2, 2), return_sequences=True))
     # adds 'depth' number of layers to the network with 8 nodes each
     for i in range(depth):
-        model.add(LSTM(8, return_sequences=True))
+        model.add(CuDNNLSTM(8, return_sequences=True))
     # adds a final layer with 2 nodes for the output
-    model.add(LSTM(2, return_sequences=True))
+    model.add(CuDNNLSTM(2, return_sequences=True))
     # prints a summary representation of the model
     model.summary()
     # configures the learning process for the network / model
-    # the optimizer function rmsprop: optimizes the gradient descent
-    # the loss function: mse: will use the "mean_squared_error when trying to improve
     model.compile(optimizer='rmsprop',
                   loss='mse')
 
@@ -145,7 +118,6 @@ def rhymeindex(lyrics):
             for i in rhymeslist:
                 i.strip("';:.,/?!-")
                 rhymeslistends.append(i[-2:])
-            '''FOLLOWING SECTION NEEDS REWORK'''
             try:
                 # rhymescheme gets all the unique two letter endings and then
                 # finds the one that occurs the most
@@ -326,9 +298,9 @@ def compose_rap(lines, rhyme_list, lyrics_file, model):
 
 
 def vectors_into_song(vectors, generated_lyrics, rhyme_list):
-    print ("\n\n")
-    print ("About to write rap (this could take a moment)...")
-    print ("\n\n")
+    print("\n\n")
+    print("About to write rap (this could take a moment)...")
+    print("\n\n")
 
     # compare the last words to see if they are the same, if they are
     # increment a penalty variable which grants penalty points for being

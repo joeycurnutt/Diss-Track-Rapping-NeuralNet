@@ -6,6 +6,7 @@ We inevitably ran out of roasts and God knows Eminem has plenty, so I decided to
 All credit goes to him for a majority of the code, so I recommend checking out his repository.
 
 ### Requirements:
+* GPU Capabilities with tensorflow, or change 'import CuDNNLSTM' to 'import LSTM' and change all references of CuDNNLSTM to LSTM
 * Python 3.x, not 3.10
 * pronouncing
 * markovify
@@ -13,7 +14,7 @@ All credit goes to him for a majority of the code, so I recommend checking out h
 * tensorflow
 * Keras
 
-All of these can be installed using "pip install "
+All of the packages can be installed using "pip install "
 
 ### Training the program:
 Once all of the dependencies are installed, make sure you have training_mode set to True, and modify the depth to your liking
